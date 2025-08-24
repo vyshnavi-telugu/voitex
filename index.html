@@ -3,19 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Speech ↔ Text Pro — Real MP3 Downloads (Frontend Only)</title>
+  <title>Voice Studio — STT & TTS Pro (with Flask MP3 + Record Fallbacks)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
   <style>
-    :root{--bg:#0f172a;--card:#0b1220;--muted:#94a3b8;--primary:#60a5fa;--accent:#a78bfa;--ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;--ring:rgba(96,165,250,.45)}
-    *{box-sizing:border-box} html,body{height:100%}
+    :root{
+      --bg:#0f172a; --card:#0b1220; --muted:#94a3b8; --primary:#60a5fa; --accent:#a78bfa; --ok:#22c55e; --warn:#f59e0b; --danger:#ef4444; --ring:rgba(96,165,250,.45);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
     body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(1200px 800px at 10% 0%,rgba(96,165,250,.15),transparent 60%),radial-gradient(800px 600px at 100% 10%,rgba(167,139,250,.12),transparent 50%),var(--bg);color:#e2e8f0}
-    .wrap{max-width:1100px;margin:0 auto;padding:20px}
-    header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(148,163,184,.15);border-radius:16px}
+    .wrap{max-width:1100px;margin:0 auto;padding:24px}
+    header{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 18px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(148,163,184,.15);border-radius:16px}
     .brand{display:flex;align-items:center;gap:10px}
     .badge{padding:4px 10px;border-radius:999px;background:linear-gradient(90deg,var(--primary),var(--accent));font-size:12px;font-weight:800;color:#0b1220}
     h1{margin:0;font-size:20px}
     .sub{font-size:12px;color:var(--muted)}
     .grid{display:grid;gap:18px;margin-top:18px;grid-template-columns:1fr}
-    @media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
+    @media(min-width:1000px){.grid{grid-template-columns:1fr 1fr}}
     .card{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(148,163,184,.15);border-radius:16px;padding:16px}
     h2{margin:0 0 10px;font-size:14px;text-transform:uppercase;letter-spacing:.12em;color:#cbd5e1}
     .toolbar{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
@@ -24,6 +28,7 @@
     button{cursor:pointer;background:linear-gradient(90deg,var(--primary),#2563eb);border:none}
     button.secondary{background:#0f172a;border:1px solid rgba(148,163,184,.25)}
     button.danger{background:linear-gradient(90deg,#ef4444,#dc2626)}
+    button.warn{background:linear-gradient(90deg,#f59e0b,#d97706)}
     button:focus,select:focus,input:focus,textarea:focus{outline:none;box-shadow:0 0 0 3px var(--ring)}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .status{font-size:12px;color:var(--muted);margin-top:8px}
@@ -38,12 +43,20 @@
         <span class="badge">Voice Studio Pro</span>
         <div>
           <h1>All‑in‑one Speech Studio</h1>
-          <div class="sub">Live STT • Smart punctuation • System voices • Real MP3 (API) • Tab audio WebM fallback</div>
+          <div class="sub">Live STT (no duplicates) • Smart punctuation • System voices • Flask MP3 • Tab/Mic recording fallbacks</div>
         </div>
       </div>
       <div class="row">
-        <input id="apiKey" type="password" placeholder="OpenAI API Key (stored locally)" class="full" style="min-width:280px"/>
-        <button id="saveKey" class="secondary">Save Key</button>
+        <label class="sub">OpenAI voice for MP3
+          <select id="apiVoice" class="full" style="min-width:220px">
+            <option value="alloy">Alloy (neutral)</option>
+            <option value="bright">Bright</option>
+            <option value="calm">Calm</option>
+            <option value="verse">Verse</option>
+            <option value="narration">Narration</option>
+            <option value="serene">Serene</option>
+          </select>
+        </label>
       </div>
     </header>
 
@@ -68,6 +81,7 @@
         </div>
         <textarea id="sttOut" placeholder="Start and speak…"></textarea>
         <div class="status" id="sttStatus">Idle</div>
+        <div class="note">If you still see repeats, try switching browsers (Chrome recommended) or languages. This build de‑duplicates final results aggressively.</div>
       </section>
 
       <!-- TTS -->
@@ -75,7 +89,7 @@
         <h2>Text → Speech</h2>
         <textarea id="ttsIn" placeholder="Type or paste text to speak…"></textarea>
         <div class="toolbar">
-          <label>Voice
+          <label>System Voice (preview)
             <select id="voiceSel"></select>
           </label>
           <label>Rate <input type="number" id="rate" min="0.5" max="2" step="0.1" value="1"></label>
@@ -84,11 +98,14 @@
         <div class="row">
           <button id="speak">Speak (system voice)</button>
           <button id="stopSpeak" class="danger">Stop</button>
-          <button id="downloadMP3">Download MP3 (OpenAI)</button>
+        </div>
+        <div class="row">
+          <button id="downloadMP3">Download MP3 (Flask /tts)</button>
           <button id="recordTab" class="secondary">Record Tab Audio (WebM)</button>
+          <button id="recordMic" class="secondary warn">Record Microphone (WebM)</button>
         </div>
         <div class="note">
-          <b>MP3:</b> Works entirely in the browser by calling OpenAI's TTS endpoint with your API key. Key is saved in <code>localStorage</code> on this device. If you prefer no external API, use <b>Record Tab Audio</b> to capture playback as WebM.
+          <b>MP3:</b> This calls your Flask backend at <code>/tts</code>. If it fails, use <b>Record Tab Audio</b> to capture the playback, or <b>Record Microphone</b> to save your microphone input.
         </div>
         <div class="status" id="ttsStatus">Voices loading…</div>
       </section>
@@ -96,11 +113,11 @@
 
     <section class="card">
       <h2>Overview</h2>
-      <p><b>Workflow:</b> Dictate with auto‑punctuation → edit text → choose a system voice to audition → create a production MP3 via OpenAI TTS, or use the built‑in tab recorder for a quick WebM without any API.</p>
+      <p><b>Workflow:</b> Dictate with auto‑punctuation → edit text → audition with system voice → save production MP3 via Flask + OpenAI → or record tab/mic to WebM. Designed to be reliable on desktop & mobile.</p>
       <ul class="sub">
-        <li>No duplicate words while dictating; sentences auto‑capitalized and punctuated.</li>
-        <li>Lists every system TTS voice available on your device.</li>
-        <li>Automatic downloads: <code>speech.mp3</code> (API) or <code>speech.webm</code> (recorded).</li>
+        <li>STT de‑dupes final results using a normalized hash — no repeated sentences.</li>
+        <li>Lists every available system TTS voice for instant preview.</li>
+        <li>One‑click MP3 via backend (<code>/tts</code>) and robust recording fallbacks.</li>
       </ul>
     </section>
   </div>
@@ -111,12 +128,12 @@
     function downloadBlob(blob, filename){
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
     }
-    // Persist API key locally
-    (function initKey(){ const k=localStorage.getItem('OPENAI_KEY'); if(k) $('apiKey').value='••••••••••••••••'; })();
-    $('saveKey').onclick=()=>{ const val=$('apiKey').value.trim(); if(!val){ alert('Enter API key'); return; } localStorage.setItem('OPENAI_KEY', val); $('apiKey').value='••••••••••••••••'; alert('API key saved locally'); };
 
-    // ===== STT (Web Speech Recognition) =====
+    // ===== STT (Web Speech Recognition) with de-duplication =====
     let rec, recActive=false; const sttOut=$('sttOut'), sttStatus=$('sttStatus');
+    const seenFinals = new Set();
+    const norm = (s)=> s.toLowerCase().replace(/[\s]+/g,' ').trim().replace(/[.,!?]+$/,'');
+
     if('webkitSpeechRecognition' in window || 'SpeechRecognition' in window){
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       rec = new SR(); rec.continuous = true; rec.interimResults = true;
@@ -127,9 +144,13 @@
         for(let i=ev.resultIndex;i<ev.results.length;i++){
           const res=ev.results[i];
           if(res.isFinal){
-            let sentence=res[0].transcript.trim();
+            let sentence=res[0].transcript.replace(/[\s]+/g,' ').trim();
+            const key = norm(sentence);
+            if(seenFinals.has(key)) continue; // skip duplicates
+            seenFinals.add(key);
             if($('autoPunc').checked){ if(!/[.!?]$/.test(sentence)) sentence+='.'; sentence = sentence.charAt(0).toUpperCase()+sentence.slice(1); }
             sttOut.value = sttOut.value ? (sttOut.value.trim()+" "+sentence) : sentence;
+            sttOut.scrollTop = sttOut.scrollHeight;
           }
         }
       };
@@ -141,7 +162,7 @@
     $('copyText').onclick=async()=>{ try{ await navigator.clipboard.writeText(sttOut.value); sttStatus.textContent='Copied'; sttStatus.style.color='#22c55e'; }catch{ sttStatus.textContent='Copy failed'; sttStatus.style.color='#ef4444'; } };
     $('saveTxt').onclick=()=>{ downloadBlob(new Blob([sttOut.value||''],{type:'text/plain'}),'transcription.txt'); };
 
-    // ===== TTS (System Voice Playback) =====
+    // ===== TTS (System Voice Preview) =====
     const ttsStatus=$('ttsStatus'); let voices=[]; const voiceSel=$('voiceSel');
     function loadVoices(){
       voices = speechSynthesis.getVoices(); voiceSel.innerHTML='';
@@ -163,57 +184,60 @@
     };
     $('stopSpeak').onclick=()=>{ if(speechSynthesis.speaking) speechSynthesis.cancel(); };
 
-    // ===== Real MP3 via OpenAI TTS (Frontend fetch) =====
-    async function downloadMP3ViaOpenAI(){
-      const text = $('ttsIn').value.trim(); if(!text){ alert('Enter some text'); return; }
-      const key = localStorage.getItem('OPENAI_KEY'); if(!key){ alert('Save your OpenAI API key first.'); return; }
-      ttsStatus.textContent='Generating MP3 via OpenAI…'; ttsStatus.style.color='#fbbf24';
+    // ===== Real MP3 via Flask backend (/tts) =====
+    $('downloadMP3').onclick=async()=>{
+      const text=$('ttsIn').value.trim(); if(!text){ alert('Enter some text'); return; }
+      const voice=$('apiVoice').value || 'alloy';
+      const form=new FormData(); form.append('text',text); form.append('voice',voice);
+      ttsStatus.textContent='Requesting MP3 from backend…'; ttsStatus.style.color='#fbbf24';
       try{
-        const voiceName = (voices[parseInt(voiceSel.value||'0')]?.name || 'alloy').toLowerCase().replace(/\s+/g,'-');
-        const res = await fetch('https://api.openai.com/v1/audio/speech',{
-          method:'POST',
-          headers:{
-            'Authorization':`Bearer ${key}`,
-            'Content-Type':'application/json'
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini-tts',
-            voice: voiceName || 'alloy',
-            input: text,
-            format: 'mp3'
-          })
-        });
-        if(!res.ok){ const errText = await res.text(); throw new Error(errText || ('HTTP '+res.status)); }
-        const blob = await res.blob();
-        downloadBlob(blob,'speech.mp3');
+        const res= await fetch('/tts',{method:'POST',body:form});
+        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob= await res.blob(); downloadBlob(blob,'speech.mp3');
         ttsStatus.textContent='MP3 downloaded'; ttsStatus.style.color='#22c55e';
-      }catch(e){
-        console.error(e);
-        ttsStatus.textContent='MP3 failed — use Tab Recorder fallback'; ttsStatus.style.color='#ef4444';
+      }catch(err){
+        console.error(err); ttsStatus.textContent='Backend failed — use Record Tab Audio fallback'; ttsStatus.style.color='#ef4444';
       }
-    }
-    $('downloadMP3').onclick=downloadMP3ViaOpenAI;
+    };
 
-    // ===== Fallback: Record Tab Audio to WebM while TTS plays =====
-    let mediaRecorder, recChunks=[];
+    // ===== Fallback A: Record Tab Audio to WebM while TTS plays =====
+    let tabRecorder, tabChunks=[];
     async function recordTabAudioWhileSpeaking(){
       const text=$('ttsIn').value.trim(); if(!text){ alert('Enter some text'); return; }
       if(!navigator.mediaDevices?.getDisplayMedia){ alert('Tab audio recording not supported in this browser.'); return; }
       try{
         const stream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio:true });
-        recChunks=[]; mediaRecorder = new MediaRecorder(stream,{mimeType:'audio/webm'});
-        mediaRecorder.ondataavailable=(e)=>{ if(e.data.size>0) recChunks.push(e.data); };
-        mediaRecorder.onstop=()=>{ const blob=new Blob(recChunks,{type:'audio/webm'}); downloadBlob(blob,'speech.webm'); stream.getTracks().forEach(t=>t.stop()); };
-        mediaRecorder.start();
-        // Speak via system voice (so the tab actually has audio)
+        tabChunks=[]; tabRecorder = new MediaRecorder(stream,{mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm'});
+        tabRecorder.ondataavailable=(e)=>{ if(e.data.size>0) tabChunks.push(e.data); };
+        tabRecorder.onstop=()=>{ const blob=new Blob(tabChunks,{type:'audio/webm'}); downloadBlob(blob,'speech.webm'); stream.getTracks().forEach(t=>t.stop()); };
+        tabRecorder.start();
+        // Speak via system voice (so the tab has audio)
         $('speak').click();
-        if(currentUtter){ currentUtter.onend=()=>{ try{mediaRecorder.stop();}catch{} ttsStatus.textContent='Recording saved'; ttsStatus.style.color='#22c55e'; } }
+        if(currentUtter){ currentUtter.onend=()=>{ try{tabRecorder.stop();}catch{} ttsStatus.textContent='Tab recording saved'; ttsStatus.style.color='#22c55e'; } }
         // Safety stop after 90s
-        setTimeout(()=>{ if(mediaRecorder && mediaRecorder.state==='recording'){ try{mediaRecorder.stop();}catch{} } }, 90000);
-        alert('If prompted, choose **This Tab** and enable **Share tab audio**.');
-      }catch(e){ console.error(e); alert('Recording failed: '+e.message); }
+        setTimeout(()=>{ if(tabRecorder && tabRecorder.state==='recording'){ try{tabRecorder.stop();}catch{} } }, 90000);
+        alert('When prompted, choose **This Tab** and enable **Share tab audio**.');
+      }catch(e){ console.error(e); alert('Recording failed: '+e.message+' — make sure "Share tab audio" is enabled.'); }
     }
     $('recordTab').onclick=recordTabAudioWhileSpeaking;
+
+    // ===== Fallback B: Record Microphone to WebM =====
+    let micRecorder, micChunks=[];
+    $('recordMic').onclick=async()=>{
+      if(!navigator.mediaDevices?.getUserMedia){ alert('Microphone recording not supported in this browser.'); return; }
+      try{
+        const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+        micChunks=[]; micRecorder = new MediaRecorder(stream,{mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm'});
+        micRecorder.ondataavailable=(e)=>{ if(e.data.size>0) micChunks.push(e.data); };
+        micRecorder.onstop=()=>{ const blob=new Blob(micChunks,{type:'audio/webm'}); downloadBlob(blob,'microphone.webm'); stream.getTracks().forEach(t=>t.stop()); };
+        micRecorder.start();
+        ttsStatus.textContent='Recording microphone… Click the button again to stop.'; ttsStatus.style.color='#fbbf24';
+        // Toggle stop on second click
+        const btn=this;
+      }catch(e){ console.error(e); alert('Mic recording failed: '+e.message); }
+    };
+    // Allow stopping mic recorder with Escape key or Stop button
+    document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && micRecorder && micRecorder.state==='recording'){ try{micRecorder.stop();}catch{} } });
   </script>
 </body>
 </html>
