@@ -1,243 +1,170 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Voice Studio — STT & TTS Pro (with Flask MP3 + Record Fallbacks)</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STT + TTS + Recorder</title>
   <style>
-    :root{
-      --bg:#0f172a; --card:#0b1220; --muted:#94a3b8; --primary:#60a5fa; --accent:#a78bfa; --ok:#22c55e; --warn:#f59e0b; --danger:#ef4444; --ring:rgba(96,165,250,.45);
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0; padding: 0;
+      background: #f9f9f9;
+      display: flex; flex-direction: column;
+      align-items: center;
+      padding: 20px;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(1200px 800px at 10% 0%,rgba(96,165,250,.15),transparent 60%),radial-gradient(800px 600px at 100% 10%,rgba(167,139,250,.12),transparent 50%),var(--bg);color:#e2e8f0}
-    .wrap{max-width:1100px;margin:0 auto;padding:24px}
-    header{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 18px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(148,163,184,.15);border-radius:16px}
-    .brand{display:flex;align-items:center;gap:10px}
-    .badge{padding:4px 10px;border-radius:999px;background:linear-gradient(90deg,var(--primary),var(--accent));font-size:12px;font-weight:800;color:#0b1220}
-    h1{margin:0;font-size:20px}
-    .sub{font-size:12px;color:var(--muted)}
-    .grid{display:grid;gap:18px;margin-top:18px;grid-template-columns:1fr}
-    @media(min-width:1000px){.grid{grid-template-columns:1fr 1fr}}
-    .card{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(148,163,184,.15);border-radius:16px;padding:16px}
-    h2{margin:0 0 10px;font-size:14px;text-transform:uppercase;letter-spacing:.12em;color:#cbd5e1}
-    .toolbar{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
-    textarea{width:100%;min-height:130px;background:#0b1220;border:1px solid rgba(148,163,184,.25);border-radius:12px;color:#e2e8f0;padding:10px;resize:vertical}
-    button,select,input[type="number"],input[type="text"],input[type="password"]{background:#0f172a;color:#e2e8f0;border:1px solid rgba(148,163,184,.25);padding:10px 12px;border-radius:12px;font-weight:600}
-    button{cursor:pointer;background:linear-gradient(90deg,var(--primary),#2563eb);border:none}
-    button.secondary{background:#0f172a;border:1px solid rgba(148,163,184,.25)}
-    button.danger{background:linear-gradient(90deg,#ef4444,#dc2626)}
-    button.warn{background:linear-gradient(90deg,#f59e0b,#d97706)}
-    button:focus,select:focus,input:focus,textarea:focus{outline:none;box-shadow:0 0 0 3px var(--ring)}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .status{font-size:12px;color:var(--muted);margin-top:8px}
-    .note{font-size:12px;color:#cbd5e1;background:#0b1220;border:1px dashed rgba(148,163,184,.35);border-radius:12px;padding:10px;margin-top:10px}
-    .full{width:100%}
+    h1 { color: #333; }
+    .section {
+      background: white;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 500px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    textarea, select {
+      width: 100%; padding: 10px; margin: 10px 0;
+      border-radius: 5px; border: 1px solid #ccc;
+      font-size: 14px;
+    }
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      border: none;
+      border-radius: 5px;
+      background: #007BFF;
+      color: white; cursor: pointer;
+      font-size: 14px;
+    }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    audio { margin-top: 10px; width: 100%; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div class="brand">
-        <span class="badge">Voice Studio Pro</span>
-        <div>
-          <h1>All‑in‑one Speech Studio</h1>
-          <div class="sub">Live STT (no duplicates) • Smart punctuation • System voices • Flask MP3 • Tab/Mic recording fallbacks</div>
-        </div>
-      </div>
-      <div class="row">
-        <label class="sub">OpenAI voice for MP3
-          <select id="apiVoice" class="full" style="min-width:220px">
-            <option value="alloy">Alloy (neutral)</option>
-            <option value="bright">Bright</option>
-            <option value="calm">Calm</option>
-            <option value="verse">Verse</option>
-            <option value="narration">Narration</option>
-            <option value="serene">Serene</option>
-          </select>
-        </label>
-      </div>
-    </header>
 
-    <div class="grid">
-      <!-- STT -->
-      <section class="card">
-        <h2>Speech → Text</h2>
-        <div class="toolbar">
-          <label>Language
-            <select id="lang">
-              <option value="en-US">English (US)</option>
-              <option value="en-GB">English (UK)</option>
-              <option value="hi-IN">Hindi</option>
-              <option value="te-IN">Telugu</option>
-            </select>
-          </label>
-          <label class="row"><input type="checkbox" id="autoPunc" checked> Auto‑punctuation</label>
-          <button id="sttStart">Start</button>
-          <button id="sttStop" class="secondary">Stop</button>
-          <button id="copyText" class="secondary">Copy</button>
-          <button id="saveTxt">Save .txt</button>
-        </div>
-        <textarea id="sttOut" placeholder="Start and speak…"></textarea>
-        <div class="status" id="sttStatus">Idle</div>
-        <div class="note">If you still see repeats, try switching browsers (Chrome recommended) or languages. This build de‑duplicates final results aggressively.</div>
-      </section>
+<h1>Speech Tools</h1>
 
-      <!-- TTS -->
-      <section class="card">
-        <h2>Text → Speech</h2>
-        <textarea id="ttsIn" placeholder="Type or paste text to speak…"></textarea>
-        <div class="toolbar">
-          <label>System Voice (preview)
-            <select id="voiceSel"></select>
-          </label>
-          <label>Rate <input type="number" id="rate" min="0.5" max="2" step="0.1" value="1"></label>
-          <label>Pitch <input type="number" id="pitch" min="0" max="2" step="0.1" value="1"></label>
-        </div>
-        <div class="row">
-          <button id="speak">Speak (system voice)</button>
-          <button id="stopSpeak" class="danger">Stop</button>
-        </div>
-        <div class="row">
-          <button id="downloadMP3">Download MP3 (Flask /tts)</button>
-          <button id="recordTab" class="secondary">Record Tab Audio (WebM)</button>
-          <button id="recordMic" class="secondary warn">Record Microphone (WebM)</button>
-        </div>
-        <div class="note">
-          <b>MP3:</b> This calls your Flask backend at <code>/tts</code>. If it fails, use <b>Record Tab Audio</b> to capture the playback, or <b>Record Microphone</b> to save your microphone input.
-        </div>
-        <div class="status" id="ttsStatus">Voices loading…</div>
-      </section>
-    </div>
+<div class="section">
+  <h2>Speech-to-Text</h2>
+  <textarea id="sttResult" rows="4" placeholder="Your speech will appear here..."></textarea><br>
+  <button id="startSTT">Start STT</button>
+  <button id="stopSTT">Stop STT</button>
+</div>
 
-    <section class="card">
-      <h2>Overview</h2>
-      <p><b>Workflow:</b> Dictate with auto‑punctuation → edit text → audition with system voice → save production MP3 via Flask + OpenAI → or record tab/mic to WebM. Designed to be reliable on desktop & mobile.</p>
-      <ul class="sub">
-        <li>STT de‑dupes final results using a normalized hash — no repeated sentences.</li>
-        <li>Lists every available system TTS voice for instant preview.</li>
-        <li>One‑click MP3 via backend (<code>/tts</code>) and robust recording fallbacks.</li>
-      </ul>
-    </section>
-  </div>
+<div class="section">
+  <h2>Text-to-Speech</h2>
+  <textarea id="ttsInput" rows="3" placeholder="Enter text to speak..."></textarea>
+  <select id="voiceSelect"></select><br>
+  <button id="speakTTS">Speak</button>
+  <button id="downloadTTS">Download Speech</button>
+  <audio id="ttsAudio" controls></audio>
+</div>
 
-  <script>
-    // ===== Helpers =====
-    const $ = (id)=>document.getElementById(id);
-    function downloadBlob(blob, filename){
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
-    }
+<div class="section">
+  <h2>Audio Recorder</h2>
+  <button id="startRec">Start Recording</button>
+  <button id="stopRec" disabled>Stop & Download</button>
+  <audio id="recPlayer" controls></audio>
+</div>
 
-    // ===== STT (Web Speech Recognition) with de-duplication =====
-    let rec, recActive=false; const sttOut=$('sttOut'), sttStatus=$('sttStatus');
-    const seenFinals = new Set();
-    const norm = (s)=> s.toLowerCase().replace(/[\s]+/g,' ').trim().replace(/[.,!?]+$/,'');
+<script>
+  // ========== SPEECH TO TEXT ==========
+  let recognition;
+  let sttResult = document.getElementById('sttResult');
+  let finalText = "";
 
-    if('webkitSpeechRecognition' in window || 'SpeechRecognition' in window){
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      rec = new SR(); rec.continuous = true; rec.interimResults = true;
-      rec.onstart=()=>{recActive=true; sttStatus.textContent='Listening…'; sttStatus.style.color='#22c55e'};
-      rec.onerror=(e)=>{sttStatus.textContent='Error: '+e.error; sttStatus.style.color='#ef4444'};
-      rec.onend=()=>{recActive=false; sttStatus.textContent='Stopped'; sttStatus.style.color='#94a3b8'};
-      rec.onresult=(ev)=>{
-        for(let i=ev.resultIndex;i<ev.results.length;i++){
-          const res=ev.results[i];
-          if(res.isFinal){
-            let sentence=res[0].transcript.replace(/[\s]+/g,' ').trim();
-            const key = norm(sentence);
-            if(seenFinals.has(key)) continue; // skip duplicates
-            seenFinals.add(key);
-            if($('autoPunc').checked){ if(!/[.!?]$/.test(sentence)) sentence+='.'; sentence = sentence.charAt(0).toUpperCase()+sentence.slice(1); }
-            sttOut.value = sttOut.value ? (sttOut.value.trim()+" "+sentence) : sentence;
-            sttOut.scrollTop = sttOut.scrollHeight;
-          }
+  if ('webkitSpeechRecognition' in window) {
+    recognition = new webkitSpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = function(event) {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        let transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalText += transcript.trim() + ". ";
+        } else {
+          interim += transcript;
         }
-      };
-    } else {
-      sttStatus.textContent='SpeechRecognition not supported in this browser';
-    }
-    $('sttStart').onclick=()=>{ if(rec && !recActive){ rec.lang=$('lang').value; rec.start(); } };
-    $('sttStop').onclick =()=>{ if(rec && recActive) rec.stop(); };
-    $('copyText').onclick=async()=>{ try{ await navigator.clipboard.writeText(sttOut.value); sttStatus.textContent='Copied'; sttStatus.style.color='#22c55e'; }catch{ sttStatus.textContent='Copy failed'; sttStatus.style.color='#ef4444'; } };
-    $('saveTxt').onclick=()=>{ downloadBlob(new Blob([sttOut.value||''],{type:'text/plain'}),'transcription.txt'); };
-
-    // ===== TTS (System Voice Preview) =====
-    const ttsStatus=$('ttsStatus'); let voices=[]; const voiceSel=$('voiceSel');
-    function loadVoices(){
-      voices = speechSynthesis.getVoices(); voiceSel.innerHTML='';
-      voices.forEach((v,i)=>{ const o=document.createElement('option'); o.value=String(i); o.textContent=`${v.name} (${v.lang})${v.default?' — Default':''}`; voiceSel.appendChild(o); });
-      ttsStatus.textContent = voices.length? `Loaded ${voices.length} voices` : 'No voices available';
-    }
-    loadVoices(); if(speechSynthesis.onvoiceschanged!==undefined) speechSynthesis.onvoiceschanged=loadVoices;
-
-    let currentUtter=null;
-    $('speak').onclick=()=>{
-      const text=$('ttsIn').value.trim(); if(!text) return;
-      if(speechSynthesis.speaking) speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance(text); const v=voices[parseInt(voiceSel.value||'0')] || voices[0];
-      u.voice=v; u.rate=parseFloat($('rate').value||'1'); u.pitch=parseFloat($('pitch').value||'1');
-      u.onstart=()=>{ ttsStatus.textContent='Speaking…'; ttsStatus.style.color='#22c55e'; };
-      u.onend=()=>{ ttsStatus.textContent='Finished'; ttsStatus.style.color='#94a3b8'; };
-      u.onerror=(e)=>{ ttsStatus.textContent='TTS error: '+(e.error||'unknown'); ttsStatus.style.color='#ef4444'; };
-      currentUtter=u; speechSynthesis.speak(u);
-    };
-    $('stopSpeak').onclick=()=>{ if(speechSynthesis.speaking) speechSynthesis.cancel(); };
-
-    // ===== Real MP3 via Flask backend (/tts) =====
-    $('downloadMP3').onclick=async()=>{
-      const text=$('ttsIn').value.trim(); if(!text){ alert('Enter some text'); return; }
-      const voice=$('apiVoice').value || 'alloy';
-      const form=new FormData(); form.append('text',text); form.append('voice',voice);
-      ttsStatus.textContent='Requesting MP3 from backend…'; ttsStatus.style.color='#fbbf24';
-      try{
-        const res= await fetch('/tts',{method:'POST',body:form});
-        if(!res.ok) throw new Error(`HTTP ${res.status}`);
-        const blob= await res.blob(); downloadBlob(blob,'speech.mp3');
-        ttsStatus.textContent='MP3 downloaded'; ttsStatus.style.color='#22c55e';
-      }catch(err){
-        console.error(err); ttsStatus.textContent='Backend failed — use Record Tab Audio fallback'; ttsStatus.style.color='#ef4444';
       }
+      sttResult.value = finalText + interim;
+    };
+  } else {
+    alert("Speech Recognition not supported in this browser.");
+  }
+
+  document.getElementById("startSTT").onclick = () => { finalText = sttResult.value + " "; recognition.start(); };
+  document.getElementById("stopSTT").onclick = () => recognition.stop();
+
+  // ========== TEXT TO SPEECH ==========
+  const voiceSelect = document.getElementById('voiceSelect');
+  let voices = [];
+
+  function loadVoices() {
+    voices = speechSynthesis.getVoices();
+    voiceSelect.innerHTML = '';
+    voices.forEach((v, i) => {
+      let option = document.createElement('option');
+      option.value = i;
+      option.textContent = v.name + ' (' + v.lang + ')';
+      voiceSelect.appendChild(option);
+    });
+  }
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+
+  document.getElementById("speakTTS").onclick = () => {
+    let text = document.getElementById("ttsInput").value;
+    let utter = new SpeechSynthesisUtterance(text);
+    if (voices.length > 0) utter.voice = voices[voiceSelect.value];
+    speechSynthesis.speak(utter);
+    utter.onend = () => console.log("Speech done");
+  };
+
+  document.getElementById("downloadTTS").onclick = () => {
+    let text = document.getElementById("ttsInput").value;
+    let blob = new Blob([text], {type: "text/plain"});
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "tts_text.txt"; 
+    a.click();
+  };
+
+  // ========== SIMPLE AUDIO RECORDER ==========
+  let mediaRecorder;
+  let audioChunks = [];
+  let recPlayer = document.getElementById("recPlayer");
+
+  document.getElementById("startRec").onclick = async () => {
+    let stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      let blob = new Blob(audioChunks, { type: 'audio/webm' });
+      recPlayer.src = URL.createObjectURL(blob);
+
+      // auto-download
+      let a = document.createElement("a");
+      a.href = recPlayer.src;
+      a.download = "recording.webm";
+      a.click();
     };
 
-    // ===== Fallback A: Record Tab Audio to WebM while TTS plays =====
-    let tabRecorder, tabChunks=[];
-    async function recordTabAudioWhileSpeaking(){
-      const text=$('ttsIn').value.trim(); if(!text){ alert('Enter some text'); return; }
-      if(!navigator.mediaDevices?.getDisplayMedia){ alert('Tab audio recording not supported in this browser.'); return; }
-      try{
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video:true, audio:true });
-        tabChunks=[]; tabRecorder = new MediaRecorder(stream,{mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm'});
-        tabRecorder.ondataavailable=(e)=>{ if(e.data.size>0) tabChunks.push(e.data); };
-        tabRecorder.onstop=()=>{ const blob=new Blob(tabChunks,{type:'audio/webm'}); downloadBlob(blob,'speech.webm'); stream.getTracks().forEach(t=>t.stop()); };
-        tabRecorder.start();
-        // Speak via system voice (so the tab has audio)
-        $('speak').click();
-        if(currentUtter){ currentUtter.onend=()=>{ try{tabRecorder.stop();}catch{} ttsStatus.textContent='Tab recording saved'; ttsStatus.style.color='#22c55e'; } }
-        // Safety stop after 90s
-        setTimeout(()=>{ if(tabRecorder && tabRecorder.state==='recording'){ try{tabRecorder.stop();}catch{} } }, 90000);
-        alert('When prompted, choose **This Tab** and enable **Share tab audio**.');
-      }catch(e){ console.error(e); alert('Recording failed: '+e.message+' — make sure "Share tab audio" is enabled.'); }
-    }
-    $('recordTab').onclick=recordTabAudioWhileSpeaking;
+    mediaRecorder.start();
+    document.getElementById("startRec").disabled = true;
+    document.getElementById("stopRec").disabled = false;
+  };
 
-    // ===== Fallback B: Record Microphone to WebM =====
-    let micRecorder, micChunks=[];
-    $('recordMic').onclick=async()=>{
-      if(!navigator.mediaDevices?.getUserMedia){ alert('Microphone recording not supported in this browser.'); return; }
-      try{
-        const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
-        micChunks=[]; micRecorder = new MediaRecorder(stream,{mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm'});
-        micRecorder.ondataavailable=(e)=>{ if(e.data.size>0) micChunks.push(e.data); };
-        micRecorder.onstop=()=>{ const blob=new Blob(micChunks,{type:'audio/webm'}); downloadBlob(blob,'microphone.webm'); stream.getTracks().forEach(t=>t.stop()); };
-        micRecorder.start();
-        ttsStatus.textContent='Recording microphone… Click the button again to stop.'; ttsStatus.style.color='#fbbf24';
-        // Toggle stop on second click
-        const btn=this;
-      }catch(e){ console.error(e); alert('Mic recording failed: '+e.message); }
-    };
-    // Allow stopping mic recorder with Escape key or Stop button
-    document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && micRecorder && micRecorder.state==='recording'){ try{micRecorder.stop();}catch{} } });
-  </script>
+  document.getElementById("stopRec").onclick = () => {
+    mediaRecorder.stop();
+    document.getElementById("startRec").disabled = false;
+    document.getElementById("stopRec").disabled = true;
+  };
+</script>
 </body>
 </html>
